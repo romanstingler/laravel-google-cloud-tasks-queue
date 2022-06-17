@@ -101,7 +101,7 @@ class TaskHandler
         // If the job is being attempted again we also check if a
         // max retry duration has been set. If that duration
         // has passed, it should stop trying altogether.
-        if ($job->attempts() > 0) {
+        if ($job->attempts() >= 0) {
             $taskName = request()->header('X-Cloudtasks-Taskname');
 
             if (!is_string($taskName)) {
