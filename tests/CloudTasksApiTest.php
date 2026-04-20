@@ -185,25 +185,19 @@ class CloudTasksApiTest extends TestCase
     private function waitForQueueState(string $queue, int $waitForState): ?int
     {
         $state = null;
-        $attempts = 0;
+        $backoff = [1, 5, 10, 30, 60];
 
-        while ($state !== $waitForState) {
+        foreach ($backoff as $delay) {
             $state = $this->getQueueState($queue);
 
             if ($state === $waitForState) {
                 return $state;
             }
 
-            $attempts++;
-
-            if ($attempts >= 10) {
-                break;
-            }
-
-            sleep(1);
+            sleep($delay);
         }
 
-        return $state;
+        return $this->getQueueState($queue);
     }
 
     private function ensureQueueIs(string $queue, int $desiredState): void
