@@ -6,6 +6,7 @@ namespace Stackkit\LaravelGoogleCloudTasksQueue;
 
 use Closure;
 use PHPUnit\Framework\Assert;
+use Google\ApiCore\ApiException;
 use Google\Cloud\Tasks\V2\Task;
 
 class CloudTasksApiFake implements CloudTasksApiContract
@@ -30,6 +31,21 @@ class CloudTasksApiFake implements CloudTasksApiContract
 
     public function createTask(string $queueName, Task $task): Task
     {
+        $taskName = $task->getName();
+
+        // Check if task with same name already exists (and hasn't been deleted)
+        if (!in_array($taskName, $this->deletedTasks)) {
+            foreach ($this->createdTasks as $createdTask) {
+                if ($createdTask['task']->getName() === $taskName) {
+                    throw new ApiException(
+                        message: 'Task already exists.',
+                        code: 409,
+                        status: 'ALREADY_EXISTS',
+                    );
+                }
+            }
+        }
+
         $this->createdTasks[] = compact('queueName', 'task');
 
         return $task;
@@ -42,7 +58,17 @@ class CloudTasksApiFake implements CloudTasksApiContract
 
     public function getTask(string $taskName): Task
     {
-        return (new Task)->setName($taskName);
+        foreach ($this->createdTasks as $createdTask) {
+            if ($createdTask['task']->getName() === $taskName && !in_array($taskName, $this->deletedTasks)) {
+                return $createdTask['task'];
+            }
+        }
+
+        throw new ApiException(
+            message: 'Requested entity was not found.',
+            code: 404,
+            status: 'NOT_FOUND',
+        );
     }
 
     public function exists(string $taskName): bool

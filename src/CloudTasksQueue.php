@@ -6,6 +6,7 @@ namespace Stackkit\LaravelGoogleCloudTasksQueue;
 
 use Closure;
 use Exception;
+use Google\ApiCore\ApiException;
 use Illuminate\Support\Str;
 use Google\Protobuf\Duration;
 
@@ -205,7 +206,7 @@ class CloudTasksQueue extends LaravelQueue implements QueueContract
         $payload = (array) json_decode($payload, true);
 
         /** @var JobShape $payload */
-        $task = tap(new Task)->setName($this->taskName($queue, $payload['displayName']));
+        $task = tap(new Task)->setName($this->taskName($queue, $payload['displayName'], $job));
 
         $payload = $this->enrichPayloadWithAttempts($payload);
 
@@ -217,26 +218,53 @@ class CloudTasksQueue extends LaravelQueue implements QueueContract
         }
 
         $queueName = $this->client->queueName($this->config['project'], $this->config['location'], $queue);
-        CloudTasksApi::createTask($queueName, $task);
+
+        try {
+            CloudTasksApi::createTask($queueName, $task);
+        } catch (ApiException $e) {
+            if (
+                ($e->getCode() === 409 || $e->getStatus() === 'ALREADY_EXISTS')
+                && $this->isUniqueJob($job)
+            ) {
+                return $payload['uuid'];
+            }
+
+            throw $e;
+        }
 
         event(new TaskCreated($queue, $task));
 
         return $payload['uuid'];
     }
 
-    private function taskName(string $queueName, string $displayName): string
+    private function taskName(string $queueName, string $displayName, mixed $job): string
     {
-        return CloudTasksClient::taskName(
-            $this->config['project'],
-            $this->config['location'],
-            $queueName,
-            str($displayName)
+        if ($this->isUniqueJob($job)) {
+            /** @var object{uniqueId: callable} $job */
+            $taskName = str($job->uniqueId())->toString();
+        } else {
+            $taskName = str($displayName)
                 ->afterLast('\\')
                 ->replaceMatches('![^-\pL\pN\s]+!u', '-')
                 ->replaceMatches('![-\s]+!u', '-')
                 ->prepend((string) Str::ulid(), '-')
-                ->toString(),
+                ->toString();
+        }
+
+        return CloudTasksClient::taskName(
+            $this->config['project'],
+            $this->config['location'],
+            $queueName,
+            $taskName,
         );
+    }
+
+    private function isUniqueJob(mixed $job): bool
+    {
+        return is_object($job)
+            && method_exists($job, 'uniqueId')
+            && property_exists($job, 'uniqueFor')
+            && $job->uniqueFor;
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Tests;
 use Override;
 use Tests\Support\User;
 use Tests\Support\UserJob;
+use Tests\Support\UniqueJob;
 use Illuminate\Support\Str;
 use Tests\Support\JobOutput;
 use Tests\Support\SimpleJob;
@@ -480,6 +481,76 @@ class QueueTest extends TestCase
         $this->dispatch((new SimpleJob));
 
         // Assert
+        CloudTasksApi::assertTaskCreated(function (Task $task): bool {
+            return $task->getName() === 'projects/my-test-project/locations/europe-west6/queues/barbequeue/tasks/01HSR4V9QE2F4T0K8RBAYQ88KE-SimpleJob';
+        });
+    }
+
+    #[Test]
+    public function jobs_with_unique_id_use_unique_id_for_task_name()
+    {
+        // Arrange
+        CloudTasksApi::fake();
+
+        // Act
+        $this->dispatch(new UniqueJob(123));
+
+        // Assert
+        CloudTasksApi::assertTaskCreated(function (Task $task): bool {
+            return $task->getName() === 'projects/my-test-project/locations/europe-west6/queues/barbequeue/tasks/UniqueJob-123';
+        });
+    }
+
+    #[Test]
+    public function jobs_with_unique_id_do_not_create_duplicates()
+    {
+        // Arrange
+        CloudTasksApi::fake();
+
+        // Act
+        $this->dispatch(new UniqueJob(123));
+        $this->dispatch(new UniqueJob(123));
+
+        // Assert - only one task should be created
+        CloudTasksApi::assertCreatedTaskCount(1);
+    }
+
+    #[Test]
+    public function unique_jobs_with_different_ids_create_separate_tasks()
+    {
+        // Arrange
+        CloudTasksApi::fake();
+
+        // Act
+        $this->dispatch(new UniqueJob(123));
+        $this->dispatch(new UniqueJob(456));
+
+        // Assert - two separate tasks should be created
+        CloudTasksApi::assertCreatedTaskCount(2);
+
+        CloudTasksApi::assertTaskCreated(function (Task $task): bool {
+            return $task->getName() === 'projects/my-test-project/locations/europe-west6/queues/barbequeue/tasks/UniqueJob-123';
+        });
+
+        CloudTasksApi::assertTaskCreated(function (Task $task): bool {
+            return $task->getName() === 'projects/my-test-project/locations/europe-west6/queues/barbequeue/tasks/UniqueJob-456';
+        });
+    }
+
+    #[Test]
+    public function non_unique_jobs_still_get_ulid_prefixed_task_names()
+    {
+        // Arrange
+        CloudTasksApi::fake();
+        Str::createUlidsUsingSequence(['01HSR4V9QE2F4T0K8RBAYQ88KE']);
+
+        // Act
+        $this->dispatch(new SimpleJob);
+        $this->dispatch(new SimpleJob);
+
+        // Assert - two separate tasks should be created
+        CloudTasksApi::assertCreatedTaskCount(2);
+
         CloudTasksApi::assertTaskCreated(function (Task $task): bool {
             return $task->getName() === 'projects/my-test-project/locations/europe-west6/queues/barbequeue/tasks/01HSR4V9QE2F4T0K8RBAYQ88KE-SimpleJob';
         });
