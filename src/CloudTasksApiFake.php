@@ -6,8 +6,8 @@ namespace Stackkit\LaravelGoogleCloudTasksQueue;
 
 use Closure;
 use PHPUnit\Framework\Assert;
-use Google\ApiCore\ApiException;
 use Google\Cloud\Tasks\V2\Task;
+use Google\ApiCore\ApiException;
 
 class CloudTasksApiFake implements CloudTasksApiContract
 {
@@ -34,7 +34,7 @@ class CloudTasksApiFake implements CloudTasksApiContract
         $taskName = $task->getName();
 
         // Check if task with same name already exists (and hasn't been deleted)
-        if (!in_array($taskName, $this->deletedTasks)) {
+        if (! in_array($taskName, $this->deletedTasks)) {
             foreach ($this->createdTasks as $createdTask) {
                 if ($createdTask['task']->getName() === $taskName) {
                     throw new ApiException(
@@ -59,7 +59,7 @@ class CloudTasksApiFake implements CloudTasksApiContract
     public function getTask(string $taskName): Task
     {
         foreach ($this->createdTasks as $createdTask) {
-            if ($createdTask['task']->getName() === $taskName && !in_array($taskName, $this->deletedTasks)) {
+            if ($createdTask['task']->getName() === $taskName && ! in_array($taskName, $this->deletedTasks)) {
                 return $createdTask['task'];
             }
         }

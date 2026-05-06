@@ -6,7 +6,6 @@ namespace Stackkit\LaravelGoogleCloudTasksQueue;
 
 use Closure;
 use Exception;
-use Google\ApiCore\ApiException;
 use Illuminate\Support\Str;
 use Google\Protobuf\Duration;
 
@@ -15,6 +14,7 @@ use function Safe\json_encode;
 
 use Google\Protobuf\Timestamp;
 use Google\Cloud\Tasks\V2\Task;
+use Google\ApiCore\ApiException;
 use Illuminate\Queue\WorkerOptions;
 use Google\Cloud\Tasks\V2\OidcToken;
 use Google\Cloud\Tasks\V2\HttpMethod;
